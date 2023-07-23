@@ -254,25 +254,6 @@ impl State {
                     consumed,
                 }
             }
-            /* WindowEvent::ReceivedCharacter(ch) => {
-                // On Mac we get here when the user presses Cmd-C (copy), ctrl-W, etc.
-                // We need to ignore these characters that are side-effects of commands.
-                let is_mac_cmd = cfg!(target_os = "macos")
-                    && (self.egui_input.modifiers.ctrl || self.egui_input.modifiers.mac_cmd);
-
-                let consumed = if is_printable_char(*ch) && !is_mac_cmd {
-                    self.egui_input
-                        .events
-                        .push(egui::Event::Text(ch.to_string()));
-                    egui_ctx.wants_keyboard_input()
-                } else {
-                    false
-                };
-                EventResponse {
-                    repaint: true,
-                    consumed,
-                }
-            } */
             WindowEvent::Ime(ime) => {
                 // on Mac even Cmd-C is pressed during ime, a `c` is pushed to Preedit.
                 // So no need to check is_mac_cmd.
@@ -313,8 +294,10 @@ impl State {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 self.on_keyboard_input(event);
-                let consumed = egui_ctx.wants_keyboard_input()
+
+                let mut consumed = egui_ctx.wants_keyboard_input()
                     || event.logical_key == winit::keyboard::Key::Tab;
+
                 EventResponse {
                     repaint: true,
                     consumed,
@@ -607,6 +590,12 @@ impl State {
         let pressed = input.state == winit::event::ElementState::Pressed;
 
         if pressed {
+            if let winit::keyboard::Key::Character(ch) = logical_key {
+                self.egui_input
+                    .events
+                    .push(egui::Event::Text(ch.to_owned()));
+            }
+
             // Key::Paste etc in winit are broken/untrustworthy,
             // so we detect these things manually:
             if is_cut_command(self.egui_input.modifiers, &logical_key) {
