@@ -163,26 +163,8 @@ impl State {
 
     /// Prepare for a new frame by extracting the accumulated input,
     /// as well as setting [the time](egui::RawInput::time) and [screen rectangle](egui::RawInput::screen_rect).
-    pub fn take_egui_input(&mut self, window: &winit::window::Window) -> egui::RawInput {
-        let pixels_per_point = self.pixels_per_point();
-
+    pub fn take_egui_input(&mut self) -> egui::RawInput {
         self.egui_input.time = Some(self.start_time.elapsed().as_secs_f64());
-
-        // On Windows, a minimized window will have 0 width and height.
-        // See: https://github.com/rust-windowing/winit/issues/208
-        // This solves an issue where egui window positions would be changed when minimizing on Windows.
-        let screen_size_in_pixels = screen_size_in_pixels(window);
-        let screen_size_in_points = screen_size_in_pixels / pixels_per_point;
-        self.egui_input.screen_rect =
-            if screen_size_in_points.x > 0.0 && screen_size_in_points.y > 0.0 {
-                Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    screen_size_in_points,
-                ))
-            } else {
-                None
-            };
-
         self.egui_input.take()
     }
 
@@ -200,6 +182,30 @@ impl State {
                 let pixels_per_point = *scale_factor as f32;
                 self.egui_input.pixels_per_point = Some(pixels_per_point);
                 self.current_pixels_per_point = pixels_per_point;
+                EventResponse {
+                    repaint: true,
+                    consumed: false,
+                }
+            }
+            WindowEvent::Resized(physical_size) => {
+                let pixels_per_point = self.pixels_per_point();
+                let screen_size_in_pixels =
+                    egui::vec2(physical_size.width as f32, physical_size.height as f32);
+                let screen_size_in_points = screen_size_in_pixels / pixels_per_point;
+
+                // On Windows, a minimized window will have 0 width and height.
+                // See: https://github.com/rust-windowing/winit/issues/208
+                // This solves an issue where egui window positions would be changed when minimizing on Windows.
+                self.egui_input.screen_rect =
+                    if screen_size_in_points.x > 0.0 && screen_size_in_points.y > 0.0 {
+                        Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            screen_size_in_points,
+                        ))
+                    } else {
+                        None
+                    };
+
                 EventResponse {
                     repaint: true,
                     consumed: false,
@@ -377,7 +383,6 @@ impl State {
             | WindowEvent::CursorEntered { .. }
             | WindowEvent::Destroyed
             | WindowEvent::Occluded(_)
-            | WindowEvent::Resized(_)
             | WindowEvent::ThemeChanged(_)
             | WindowEvent::TouchpadPressure { .. } => EventResponse {
                 repaint: true,
