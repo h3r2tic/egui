@@ -306,16 +306,12 @@ impl State {
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                /* self.on_keyboard_input(input);
+                self.on_keyboard_input(event);
                 let consumed = egui_ctx.wants_keyboard_input()
-                    || input.virtual_keycode == Some(winit::event::VirtualKeyCode::Tab);
+                    || event.logical_key == winit::keyboard::Key::Tab;
                 EventResponse {
                     repaint: true,
                     consumed,
-                }*/
-                EventResponse {
-                    repaint: true,
-                    consumed: false,
                 }
             }
             WindowEvent::Focused(focused) => {
@@ -601,37 +597,36 @@ impl State {
         }
     }
 
-    /* fn on_keyboard_input(&mut self, input: &winit::event::KeyboardInput) {
-        if let Some(keycode) = input.virtual_keycode {
-            let pressed = input.state == winit::event::ElementState::Pressed;
+    fn on_keyboard_input(&mut self, input: &winit::event::KeyEvent) {
+        let logical_key = input.logical_key.as_ref();
+        let pressed = input.state == winit::event::ElementState::Pressed;
 
-            if pressed {
-                // VirtualKeyCode::Paste etc in winit are broken/untrustworthy,
-                // so we detect these things manually:
-                if is_cut_command(self.egui_input.modifiers, keycode) {
-                    self.egui_input.events.push(egui::Event::Cut);
-                } else if is_copy_command(self.egui_input.modifiers, keycode) {
-                    self.egui_input.events.push(egui::Event::Copy);
-                } else if is_paste_command(self.egui_input.modifiers, keycode) {
-                    if let Some(contents) = self.clipboard.get() {
-                        let contents = contents.replace("\r\n", "\n");
-                        if !contents.is_empty() {
-                            self.egui_input.events.push(egui::Event::Paste(contents));
-                        }
+        if pressed {
+            // Key::Paste etc in winit are broken/untrustworthy,
+            // so we detect these things manually:
+            if is_cut_command(self.egui_input.modifiers, &logical_key) {
+                self.egui_input.events.push(egui::Event::Cut);
+            } else if is_copy_command(self.egui_input.modifiers, &logical_key) {
+                self.egui_input.events.push(egui::Event::Copy);
+            } else if is_paste_command(self.egui_input.modifiers, &logical_key) {
+                if let Some(contents) = self.clipboard.get() {
+                    let contents = contents.replace("\r\n", "\n");
+                    if !contents.is_empty() {
+                        self.egui_input.events.push(egui::Event::Paste(contents));
                     }
                 }
             }
-
-            if let Some(key) = translate_virtual_key_code(keycode) {
-                self.egui_input.events.push(egui::Event::Key {
-                    key,
-                    pressed,
-                    repeat: false, // egui will fill this in for us!
-                    modifiers: self.egui_input.modifiers,
-                });
-            }
         }
-    } */
+
+        if let Some(key) = translate_virtual_key_code(&logical_key) {
+            self.egui_input.events.push(egui::Event::Key {
+                key,
+                pressed,
+                repeat: false, // egui will fill this in for us!
+                modifiers: self.egui_input.modifiers,
+            });
+        }
+    }
 
     /// Call with the output given by `egui`.
     ///
@@ -733,26 +728,26 @@ fn is_printable_char(chr: char) -> bool {
     !is_in_private_use_area && !chr.is_ascii_control()
 }
 
-/* fn is_cut_command(modifiers: egui::Modifiers, keycode: winit::keyboard::Key) -> bool {
-    (modifiers.command && keycode == winit::keyboard::Key::X)
+fn is_cut_command(modifiers: egui::Modifiers, logical_key: &winit::keyboard::Key<&str>) -> bool {
+    (modifiers.command && *logical_key == winit::keyboard::Key::Character("x"))
         || (cfg!(target_os = "windows")
             && modifiers.shift
-            && keycode == winit::keyboard::Key::Delete)
+            && *logical_key == winit::keyboard::Key::Delete)
 }
 
-fn is_copy_command(modifiers: egui::Modifiers, keycode: winit::keyboard::Key) -> bool {
-    (modifiers.command && keycode == winit::keyboard::Key::C)
+fn is_copy_command(modifiers: egui::Modifiers, logical_key: &winit::keyboard::Key<&str>) -> bool {
+    (modifiers.command && *logical_key == winit::keyboard::Key::Character("c"))
         || (cfg!(target_os = "windows")
             && modifiers.ctrl
-            && keycode == winit::keyboard::Key::Insert)
+            && *logical_key == winit::keyboard::Key::Insert)
 }
 
-fn is_paste_command(modifiers: egui::Modifiers, keycode: winit::keyboard::Key) -> bool {
-    (modifiers.command && keycode == winit::keyboard::Key::V)
+fn is_paste_command(modifiers: egui::Modifiers, logical_key: &winit::keyboard::Key<&str>) -> bool {
+    (modifiers.command && *logical_key == winit::keyboard::Key::Character("v"))
         || (cfg!(target_os = "windows")
             && modifiers.shift
-            && keycode == winit::keyboard::Key::Insert)
-} */
+            && *logical_key == winit::keyboard::Key::Insert)
+}
 
 fn translate_mouse_button(button: winit::event::MouseButton) -> Option<egui::PointerButton> {
     match button {
@@ -767,90 +762,87 @@ fn translate_mouse_button(button: winit::event::MouseButton) -> Option<egui::Poi
     }
 }
 
-fn translate_virtual_key_code(key: winit::keyboard::Key) -> Option<egui::Key> {
+fn translate_virtual_key_code(logical_key: &winit::keyboard::Key<&str>) -> Option<egui::Key> {
     use egui::Key;
+    use winit::keyboard::Key as WinitKey;
 
-    Some(match key {
-        winit::keyboard::Key::ArrowDown => Key::ArrowDown,
-        winit::keyboard::Key::ArrowLeft => Key::ArrowLeft,
-        winit::keyboard::Key::ArrowRight => Key::ArrowRight,
-        winit::keyboard::Key::ArrowUp => Key::ArrowUp,
+    Some(match logical_key {
+        WinitKey::ArrowDown => Key::ArrowDown,
+        WinitKey::ArrowLeft => Key::ArrowLeft,
+        WinitKey::ArrowRight => Key::ArrowRight,
+        WinitKey::ArrowUp => Key::ArrowUp,
 
-        winit::keyboard::Key::Escape => Key::Escape,
-        winit::keyboard::Key::Tab => Key::Tab,
-        winit::keyboard::Key::Backspace => Key::Backspace,
-        winit::keyboard::Key::Enter => Key::Enter,
-        winit::keyboard::Key::Space => Key::Space,
+        WinitKey::Escape => Key::Escape,
+        WinitKey::Tab => Key::Tab,
+        WinitKey::Backspace => Key::Backspace,
+        WinitKey::Enter => Key::Enter,
+        WinitKey::Space => Key::Space,
 
-        winit::keyboard::Key::Insert => Key::Insert,
-        winit::keyboard::Key::Delete => Key::Delete,
-        winit::keyboard::Key::Home => Key::Home,
-        winit::keyboard::Key::End => Key::End,
-        winit::keyboard::Key::PageUp => Key::PageUp,
-        winit::keyboard::Key::PageDown => Key::PageDown,
+        WinitKey::Insert => Key::Insert,
+        WinitKey::Delete => Key::Delete,
+        WinitKey::Home => Key::Home,
+        WinitKey::End => Key::End,
+        WinitKey::PageUp => Key::PageUp,
+        WinitKey::PageDown => Key::PageDown,
 
-        /* winit::keyboard::Key::Minus => Key::Minus,
-        // Using Mac the key with the Plus sign on it is reported as the Equals key
-        // (with both English and Swedish keyboard).
-        winit::keyboard::Key::Equals => Key::PlusEquals,
-
-        winit::keyboard::Key::Key0 | winit::keyboard::Key::Numpad0 => Key::Num0,
-        winit::keyboard::Key::Key1 | winit::keyboard::Key::Numpad1 => Key::Num1,
-        winit::keyboard::Key::Key2 | winit::keyboard::Key::Numpad2 => Key::Num2,
-        winit::keyboard::Key::Key3 | winit::keyboard::Key::Numpad3 => Key::Num3,
-        winit::keyboard::Key::Key4 | winit::keyboard::Key::Numpad4 => Key::Num4,
-        winit::keyboard::Key::Key5 | winit::keyboard::Key::Numpad5 => Key::Num5,
-        winit::keyboard::Key::Key6 | winit::keyboard::Key::Numpad6 => Key::Num6,
-        winit::keyboard::Key::Key7 | winit::keyboard::Key::Numpad7 => Key::Num7,
-        winit::keyboard::Key::Key8 | winit::keyboard::Key::Numpad8 => Key::Num8,
-        winit::keyboard::Key::Key9 | winit::keyboard::Key::Numpad9 => Key::Num9,
-
-        winit::keyboard::Key::A => Key::A,
-        winit::keyboard::Key::B => Key::B,
-        winit::keyboard::Key::C => Key::C,
-        winit::keyboard::Key::D => Key::D,
-        winit::keyboard::Key::E => Key::E,
-        winit::keyboard::Key::F => Key::F,
-        winit::keyboard::Key::G => Key::G,
-        winit::keyboard::Key::H => Key::H,
-        winit::keyboard::Key::I => Key::I,
-        winit::keyboard::Key::J => Key::J,
-        winit::keyboard::Key::K => Key::K,
-        winit::keyboard::Key::L => Key::L,
-        winit::keyboard::Key::M => Key::M,
-        winit::keyboard::Key::N => Key::N,
-        winit::keyboard::Key::O => Key::O,
-        winit::keyboard::Key::P => Key::P,
-        winit::keyboard::Key::Q => Key::Q,
-        winit::keyboard::Key::R => Key::R,
-        winit::keyboard::Key::S => Key::S,
-        winit::keyboard::Key::T => Key::T,
-        winit::keyboard::Key::U => Key::U,
-        winit::keyboard::Key::V => Key::V,
-        winit::keyboard::Key::W => Key::W,
-        winit::keyboard::Key::X => Key::X,
-        winit::keyboard::Key::Y => Key::Y,
-        winit::keyboard::Key::Z => Key::Z, */
-        winit::keyboard::Key::F1 => Key::F1,
-        winit::keyboard::Key::F2 => Key::F2,
-        winit::keyboard::Key::F3 => Key::F3,
-        winit::keyboard::Key::F4 => Key::F4,
-        winit::keyboard::Key::F5 => Key::F5,
-        winit::keyboard::Key::F6 => Key::F6,
-        winit::keyboard::Key::F7 => Key::F7,
-        winit::keyboard::Key::F8 => Key::F8,
-        winit::keyboard::Key::F9 => Key::F9,
-        winit::keyboard::Key::F10 => Key::F10,
-        winit::keyboard::Key::F11 => Key::F11,
-        winit::keyboard::Key::F12 => Key::F12,
-        winit::keyboard::Key::F13 => Key::F13,
-        winit::keyboard::Key::F14 => Key::F14,
-        winit::keyboard::Key::F15 => Key::F15,
-        winit::keyboard::Key::F16 => Key::F16,
-        winit::keyboard::Key::F17 => Key::F17,
-        winit::keyboard::Key::F18 => Key::F18,
-        winit::keyboard::Key::F19 => Key::F19,
-        winit::keyboard::Key::F20 => Key::F20,
+        WinitKey::Character("-") => Key::Minus,
+        WinitKey::Character("=") => Key::PlusEquals,
+        WinitKey::Character("0") => Key::Num0,
+        WinitKey::Character("1") => Key::Num1,
+        WinitKey::Character("2") => Key::Num2,
+        WinitKey::Character("3") => Key::Num3,
+        WinitKey::Character("4") => Key::Num4,
+        WinitKey::Character("5") => Key::Num5,
+        WinitKey::Character("6") => Key::Num6,
+        WinitKey::Character("7") => Key::Num7,
+        WinitKey::Character("8") => Key::Num8,
+        WinitKey::Character("9") => Key::Num9,
+        WinitKey::Character("a") => Key::A,
+        WinitKey::Character("b") => Key::B,
+        WinitKey::Character("c") => Key::C,
+        WinitKey::Character("d") => Key::D,
+        WinitKey::Character("e") => Key::E,
+        WinitKey::Character("f") => Key::F,
+        WinitKey::Character("g") => Key::G,
+        WinitKey::Character("h") => Key::H,
+        WinitKey::Character("i") => Key::I,
+        WinitKey::Character("j") => Key::J,
+        WinitKey::Character("k") => Key::K,
+        WinitKey::Character("l") => Key::L,
+        WinitKey::Character("m") => Key::M,
+        WinitKey::Character("n") => Key::N,
+        WinitKey::Character("o") => Key::O,
+        WinitKey::Character("p") => Key::P,
+        WinitKey::Character("q") => Key::Q,
+        WinitKey::Character("r") => Key::R,
+        WinitKey::Character("s") => Key::S,
+        WinitKey::Character("t") => Key::T,
+        WinitKey::Character("u") => Key::U,
+        WinitKey::Character("v") => Key::V,
+        WinitKey::Character("w") => Key::W,
+        WinitKey::Character("x") => Key::X,
+        WinitKey::Character("y") => Key::Y,
+        WinitKey::Character("z") => Key::Z,
+        WinitKey::F1 => Key::F1,
+        WinitKey::F2 => Key::F2,
+        WinitKey::F3 => Key::F3,
+        WinitKey::F4 => Key::F4,
+        WinitKey::F5 => Key::F5,
+        WinitKey::F6 => Key::F6,
+        WinitKey::F7 => Key::F7,
+        WinitKey::F8 => Key::F8,
+        WinitKey::F9 => Key::F9,
+        WinitKey::F10 => Key::F10,
+        WinitKey::F11 => Key::F11,
+        WinitKey::F12 => Key::F12,
+        WinitKey::F13 => Key::F13,
+        WinitKey::F14 => Key::F14,
+        WinitKey::F15 => Key::F15,
+        WinitKey::F16 => Key::F16,
+        WinitKey::F17 => Key::F17,
+        WinitKey::F18 => Key::F18,
+        WinitKey::F19 => Key::F19,
+        WinitKey::F20 => Key::F20,
 
         _ => {
             return None;
