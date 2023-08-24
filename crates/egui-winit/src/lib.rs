@@ -174,7 +174,7 @@ impl State {
     pub fn on_event(
         &mut self,
         egui_ctx: &egui::Context,
-        event: &winit::event::WindowEvent<'_>,
+        event: &winit::event::WindowEvent,
     ) -> EventResponse {
         use winit::event::WindowEvent;
         match event {
@@ -367,7 +367,8 @@ impl State {
             | WindowEvent::Destroyed
             | WindowEvent::Occluded(_)
             | WindowEvent::ThemeChanged(_)
-            | WindowEvent::TouchpadPressure { .. } => EventResponse {
+            | WindowEvent::TouchpadPressure { .. }
+            | WindowEvent::ActivationTokenDone { .. } => EventResponse {
                 repaint: true,
                 consumed: false,
             },
